@@ -2,6 +2,8 @@ export interface Project {
   repo: string;
   previewUrl: string;
   history: string[]; // commit SHAs, oldest first
+  files?: Record<string, string>; // current project files
+  deployId?: string; // latest Vercel deployment id (for publish)
 }
 
 export class ProjectStore {
