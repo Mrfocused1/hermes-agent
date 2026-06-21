@@ -29,9 +29,13 @@ export async function runBuild(
   embeds: string[] = [],
   styleRefs: string[] = [],
 ): Promise<BuildOutput> {
+  const log = (m: string) => console.log(`[build ${repo}] ${m}`);
+
   // Both kinds of image shape the design; only embeds become site assets.
   const designRefs = [...embeds, ...styleRefs];
+  log(`generating design image (${designRefs.length} refs)`);
   const img = await svc.openai.generateDesignImage(brief, designRefs);
+  log("image → code");
   const page = await svc.openai.imageToCode(img, brief, designRefs);
   const recipes = selectRecipes(detectFeatures(page)).map((k) => RECIPES[k]);
 
@@ -44,28 +48,34 @@ export async function runBuild(
     assetPaths.push(`/assets/ref-${i}.png`);
   });
 
+  log("assembling project (GLM)");
   let files: Record<string, string> = parseModelJson(
     await svc.glm.assembleProject(page, recipes, assetPaths),
   );
+  log(`creating repo + committing ${Object.keys(files).length} files`);
   await svc.github.createRepo(repo);
   await svc.github.commitFiles(repo, files, "feat: initial site", assets);
 
-  let deploy = await svc.vercel.deployPreview(repo, svc.owner);
+  let deploy = { id: "", url: "" };
   const outcome = await verifyAndRetry({
-    maxRetries: 3,
+    maxRetries: 2,
     build: async () => {
+      log("deploying to Vercel");
       deploy = await svc.vercel.deployPreview(repo, svc.owner);
-      const log = await svc.vercel.getBuildLogs(deploy.id);
-      return { ok: !/error/i.test(log), log };
+      log(`deploy id=${deploy.id} url=${deploy.url}`);
+      const buildLog = await svc.vercel.getBuildLogs(deploy.id);
+      return { ok: !/\berror\b/i.test(buildLog), log: buildLog };
     },
-    fix: async (log) => {
+    fix: async (errLog) => {
+      log("fixing build error (GLM)");
       const patch: Record<string, string> = parseModelJson(
-        await svc.glm.fixBuildError(JSON.stringify(files), log),
+        await svc.glm.fixBuildError(JSON.stringify(files), errLog),
       );
       files = { ...files, ...patch };
       await svc.github.commitFiles(repo, patch, "fix: build error");
     },
   });
 
+  log(`done: ${outcome.status}`);
   return { outcome, previewUrl: deploy.url, deployId: deploy.id, files };
 }

@@ -20,18 +20,26 @@ export function makeVercelService(token: string): VercelService {
     const res = await fetch(`${API}/v13/deployments`, {
       method: "POST",
       headers,
+      signal: AbortSignal.timeout(30_000),
       body: JSON.stringify({
         name: repo,
         target: "preview",
         gitSource: { type: "github", repo: `${owner}/${repo}`, ref: "main" },
       }),
     });
-    const data = (await res.json()) as { id: string; url: string };
+    const data = (await res.json()) as { id?: string; url?: string; error?: { message: string } };
+    if (!res.ok || !data.id) {
+      console.error(`[vercel] deploy failed (${res.status}):`, JSON.stringify(data).slice(0, 500));
+      throw new Error(`Vercel deploy failed (${res.status}): ${data.error?.message ?? "see logs"}`);
+    }
     return { id: data.id, url: `https://${data.url}` };
   }
 
   async function getBuildLogs(deploymentId: string): Promise<string> {
-    const res = await fetch(`${API}/v2/deployments/${deploymentId}/events`, { headers });
+    const res = await fetch(`${API}/v2/deployments/${deploymentId}/events`, {
+      headers,
+      signal: AbortSignal.timeout(30_000),
+    });
     const events = (await res.json()) as Array<{ text?: string }>;
     return Array.isArray(events) ? events.map((e) => e.text ?? "").join("\n") : "";
   }

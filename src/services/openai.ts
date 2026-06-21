@@ -2,7 +2,7 @@ import OpenAI, { toFile } from "openai";
 import type { OpenAIService } from "./types.js";
 
 export function makeOpenAIService(apiKey: string): OpenAIService {
-  const client = new OpenAI({ apiKey });
+  const client = new OpenAI({ apiKey, timeout: 120_000, maxRetries: 1 });
 
   /** Generate a website design mockup as a base64 PNG. When the user supplied
    *  reference images, they are fed in (via the image-edit endpoint) so the

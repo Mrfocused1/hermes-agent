@@ -11,7 +11,7 @@ export function makeGlmService(
   baseURL: string,
   model = "glm-4.6",
 ): GlmService {
-  const client = new OpenAI({ apiKey, baseURL });
+  const client = new OpenAI({ apiKey, baseURL, timeout: 120_000, maxRetries: 1 });
 
   async function ask(system: string, user: string): Promise<string> {
     const res = await client.chat.completions.create({
