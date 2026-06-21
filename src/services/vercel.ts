@@ -33,12 +33,33 @@ export function makeVercelService(token: string): VercelService {
         target: "preview",
       }),
     });
-    const data = (await res.json()) as { id?: string; url?: string; error?: { message: string } };
+    const data = (await res.json()) as {
+      id?: string;
+      url?: string;
+      projectId?: string;
+      error?: { message: string };
+    };
     if (!res.ok || !data.id) {
       console.error(`[vercel] deploy failed (${res.status}):`, JSON.stringify(data).slice(0, 800));
       throw new Error(`Vercel deploy failed (${res.status}): ${data.error?.message ?? "see logs"}`);
     }
+    // Make preview URLs publicly viewable (turn off Vercel Authentication).
+    if (data.projectId) await disableProtection(data.projectId);
     return { id: data.id, url: `https://${data.url}` };
+  }
+
+  /** Disable Vercel Authentication so preview links don't 401. Best-effort. */
+  async function disableProtection(projectId: string): Promise<void> {
+    try {
+      await fetch(`${API}/v9/projects/${projectId}`, {
+        method: "PATCH",
+        headers,
+        signal: AbortSignal.timeout(20_000),
+        body: JSON.stringify({ ssoProtection: null }),
+      });
+    } catch (e) {
+      console.error("[vercel] could not disable protection:", (e as Error).message);
+    }
   }
 
   async function promoteToProduction(deploymentId: string): Promise<void> {
