@@ -26,7 +26,7 @@ export async function runBuild(
   brief: string,
   references: string[] = [],
 ): Promise<BuildOutput> {
-  const img = await svc.openai.generateDesignImage(brief);
+  const img = await svc.openai.generateDesignImage(brief, references);
   const page = await svc.openai.imageToCode(img, brief, references);
   const recipes = selectRecipes(detectFeatures(page)).map((k) => RECIPES[k]);
 

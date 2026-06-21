@@ -9,9 +9,9 @@ import type { Services } from "./services/types.js";
 const WELCOME = [
   "👋 Hi! I'm Hermes — I design, build, and deploy websites for you.",
   "",
-  "Tell me what you have in mind (you can send reference images too) and I'll ask",
-  "a few quick questions, then build you a live preview. You can refine it in plain",
-  "English, and say “publish” when you're happy.",
+  "Tell me what you have in mind — you can send text, links, images, voice notes,",
+  "or videos. I'll ask a few quick questions, then build you a live preview. You can",
+  "refine it in plain English, and say “publish” when you're happy.",
   "",
   "Commands: /new (start over) · /undo (revert last change) · publish (go live)",
 ].join("\n");
@@ -35,17 +35,15 @@ export function makeBot(token: string, svc: Services): Bot {
     return ctx.reply(prev ? "Reverted to the previous version." : "Nothing to undo yet.");
   }
 
-  /** Download the largest size of a photo message as base64. */
-  async function downloadPhoto(ctx: Context): Promise<string> {
-    const photos = ctx.message?.photo ?? [];
-    const largest = photos[photos.length - 1];
-    const file = await ctx.api.getFile(largest.file_id);
+  /** Download any Telegram file by id as a Buffer (works up to ~20MB). */
+  async function fetchFile(ctx: Context, fileId: string): Promise<Buffer> {
+    const file = await ctx.api.getFile(fileId);
     const url = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
     const res = await fetch(url);
-    return Buffer.from(await res.arrayBuffer()).toString("base64");
+    return Buffer.from(await res.arrayBuffer());
   }
 
-  /** Shared path for any user utterance (text or photo caption). */
+  /** Shared path for any user utterance (from text, caption, or transcription). */
   async function handleUtterance(ctx: Context, text: string): Promise<unknown> {
     const chatId = ctx.chat!.id;
     const lower = text.toLowerCase();
@@ -73,7 +71,9 @@ export function makeBot(token: string, svc: Services): Bot {
     }
 
     // Consultation phase — talk it through, then build
-    convo.append(chatId, { role: "user", content: text });
+    const imgCount = convo.getImages(chatId).length;
+    const note = imgCount ? ` [User has attached ${imgCount} reference image(s).]` : "";
+    convo.append(chatId, { role: "user", content: text + note });
     let result;
     try {
       result = await consult(svc.glm, convo.get(chatId));
@@ -118,6 +118,45 @@ export function makeBot(token: string, svc: Services): Bot {
     }
   }
 
+  /** Store an image as a reference and act on its caption (if any). */
+  async function handleImage(ctx: Context, fileId: string): Promise<unknown> {
+    const chatId = ctx.chat!.id;
+    try {
+      const buf = await fetchFile(ctx, fileId);
+      convo.addImage(chatId, buf.toString("base64"));
+    } catch {
+      return ctx.reply("I couldn't read that image — mind resending it?");
+    }
+    const caption = ctx.message?.caption?.trim() ?? "";
+    if (!caption) {
+      return ctx.reply("📎 Got your image. Send more, or tell me what you'd like me to build.");
+    }
+    return handleUtterance(ctx, caption);
+  }
+
+  /** Transcribe audio/video and route the words (plus any caption). */
+  async function handleMedia(
+    ctx: Context,
+    fileId: string,
+    filename: string,
+    listening: string,
+  ): Promise<unknown> {
+    await ctx.reply(listening);
+    let transcript = "";
+    try {
+      const buf = await fetchFile(ctx, fileId);
+      transcript = (await svc.openai.transcribe(buf, filename)).trim();
+    } catch (e) {
+      return ctx.reply(`Couldn't process that: ${(e as Error).message}`);
+    }
+    const caption = ctx.message?.caption?.trim() ?? "";
+    const combined = [caption, transcript].filter(Boolean).join(". ");
+    if (!combined) {
+      return ctx.reply("Got it 👍 — but I couldn't make out any words. Mind adding a note?");
+    }
+    return handleUtterance(ctx, combined);
+  }
+
   bot.command(["start", "help"], (ctx) => ctx.reply(WELCOME));
 
   bot.command("new", (ctx) => {
@@ -129,22 +168,46 @@ export function makeBot(token: string, svc: Services): Bot {
   bot.command("publish", (ctx) => doPublish(ctx));
   bot.command("undo", (ctx) => doUndo(ctx));
 
+  // Text & links (links arrive as text)
   bot.on("message:text", (ctx) => handleUtterance(ctx, ctx.message.text.trim()));
 
-  // Photos: store them as references; act on the caption if there is one.
-  bot.on("message:photo", async (ctx) => {
-    const chatId = ctx.chat.id;
-    try {
-      convo.addImage(chatId, await downloadPhoto(ctx));
-    } catch {
-      return ctx.reply("I couldn't read that image — mind resending it?");
-    }
-    const caption = ctx.message.caption?.trim() ?? "";
-    if (!caption) {
-      return ctx.reply("📎 Got your image. Send more, or tell me what you'd like me to build.");
-    }
-    return handleUtterance(ctx, caption);
+  // Photos
+  bot.on("message:photo", (ctx) => {
+    const photos = ctx.message.photo;
+    return handleImage(ctx, photos[photos.length - 1].file_id);
   });
+
+  // Voice notes & audio files → transcribe
+  bot.on("message:voice", (ctx) =>
+    handleMedia(ctx, ctx.message.voice.file_id, "audio.ogg", "🎧 Listening…"),
+  );
+  bot.on("message:audio", (ctx) =>
+    handleMedia(ctx, ctx.message.audio.file_id, "audio.mp3", "🎧 Listening…"),
+  );
+
+  // Videos & round video notes → transcribe the audio
+  bot.on("message:video", (ctx) =>
+    handleMedia(ctx, ctx.message.video.file_id, "video.mp4", "🎬 Watching & listening…"),
+  );
+  bot.on("message:video_note", (ctx) =>
+    handleMedia(ctx, ctx.message.video_note.file_id, "video.mp4", "🎬 Watching & listening…"),
+  );
+
+  // Documents: treat image files as references; otherwise say what's supported
+  bot.on("message:document", (ctx) => {
+    const doc = ctx.message.document;
+    if ((doc.mime_type ?? "").startsWith("image/")) {
+      return handleImage(ctx, doc.file_id);
+    }
+    return ctx.reply(
+      "I can work with text, links, images, voice notes, and videos — that file type isn't supported yet.",
+    );
+  });
+
+  // Catch-all so the bot never stays silent (stickers, locations, etc.)
+  bot.on("message", (ctx) =>
+    ctx.reply("I can take text, links, images, voice notes, and videos — try one of those 🙂"),
+  );
 
   return bot;
 }
