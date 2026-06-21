@@ -2,7 +2,10 @@ import OpenAI, { toFile } from "openai";
 import type { OpenAIService } from "./types.js";
 
 export function makeOpenAIService(apiKey: string): OpenAIService {
-  const client = new OpenAI({ apiKey, timeout: 120_000, maxRetries: 1 });
+  const client = new OpenAI({ apiKey, timeout: 180_000, maxRetries: 1 });
+  // Upgradable without a code change — set OPENAI_CODE_MODEL in Railway to a
+  // stronger model (the one you get great results from in ChatGPT).
+  const codeModel = process.env.OPENAI_CODE_MODEL ?? "gpt-4o";
 
   /** Generate a website design mockup as a base64 PNG. When the user supplied
    *  reference images, they are fed in (via the image-edit endpoint) so the
@@ -12,7 +15,11 @@ export function makeOpenAIService(apiKey: string): OpenAIService {
     brief: string,
     references: string[] = [],
   ): Promise<string> {
-    const basePrompt = `Modern, polished website landing-page design mockup. ${brief}`;
+    const basePrompt =
+      `A stunning, award-winning website landing-page design mockup — the quality ` +
+      `of a top design agency. Polished modern UI, refined typography, a cohesive ` +
+      `and sophisticated colour palette, generous whitespace, depth and visual ` +
+      `hierarchy. Brief: ${brief}`;
 
     if (references.length) {
       const files = await Promise.all(
@@ -54,13 +61,24 @@ export function makeOpenAIService(apiKey: string): OpenAIService {
       {
         type: "text",
         text:
-          `Convert this website design into a single responsive index.html ` +
-          `with inline CSS. Output ONLY the HTML, no markdown fences. ` +
-          `Brief: ${brief}.${assetNote} Add data-hero on the hero ` +
-          `container, data-reveal on scroll-in sections, data-pin on a ` +
-          `standout section worth pinning, data-parallax on parallax ` +
-          `layers, data-marquee on any logo/text marquee, data-draw on a ` +
-          `decorative SVG path to draw on scroll, and data-count on any ` +
+          `You are an award-winning web designer and front-end engineer. Build ONE ` +
+          `complete, production-quality index.html for the brief, using the attached ` +
+          `mockup for layout/style but executing it to a far higher polish than a ` +
+          `typical template.\n\n` +
+          `QUALITY BAR (non-negotiable):\n` +
+          `- Premium, modern aesthetic — like a top design-agency landing page.\n` +
+          `- Load a tasteful Google Font via <link> and use a real type scale.\n` +
+          `- Define a refined colour palette with CSS custom properties; cohesive, not flat.\n` +
+          `- Add depth: subtle gradients, soft shadows, rounded corners, 1px borders, ` +
+          `smooth hover/focus transitions.\n` +
+          `- Generous, consistent spacing; strong visual hierarchy; fully responsive (mobile-first).\n` +
+          `- Write real, specific, compelling copy from the brief — NO lorem ipsum, no placeholders.\n` +
+          `- All CSS in one <style> tag. Output ONLY the HTML (no markdown fences).\n\n` +
+          `Brief: ${brief}.${assetNote}\n\n` +
+          `Animation hooks — add these attributes so motion can attach: data-hero on the ` +
+          `hero container, data-reveal on scroll-in sections, data-pin on a standout ` +
+          `section worth pinning, data-parallax on parallax layers, data-marquee on a ` +
+          `logo/text marquee, data-draw on a decorative SVG path, and data-count on any ` +
           `statistic number (set data-count to the target value).`,
       },
       {
@@ -86,8 +104,9 @@ export function makeOpenAIService(apiKey: string): OpenAIService {
     }
 
     const res = await client.chat.completions.create({
-      model: "gpt-4o",
+      model: codeModel,
       messages: [{ role: "user", content }],
+      max_tokens: 12_000,
     });
     const raw = res.choices[0]?.message?.content ?? "";
     // Strip ```html ... ``` fences if the model added them.
