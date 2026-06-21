@@ -24,23 +24,18 @@ export function makeOpenAIService(apiKey: string): OpenAIService {
       : "";
 
     const prompt =
-      `You are an award-winning web designer (Awwwards / top-agency calibre). Design ` +
-      `AND build a complete, single, production index.html for the brief. This is the ` +
-      `FINAL website, not a wireframe — make it genuinely beautiful.\n\n` +
-      `DESIGN DIRECTION (non-negotiable):\n` +
-      `- Editorial, premium aesthetic: strong visual hierarchy, generous whitespace, big confident hero.\n` +
-      `- Pair an ELEGANT DISPLAY FONT for large headings (a serif such as Playfair Display, ` +
-      `Cormorant, or Fraunces) with a clean sans-serif (e.g. Inter) for body — load both from Google Fonts.\n` +
-      `- A refined, cohesive colour palette via CSS custom properties.\n` +
-      `- Depth and craft: subtle gradients, soft shadows, fine 1px borders, rounded corners, ` +
-      `smooth hover/focus transitions.\n` +
-      `- Place the user's photos cleanly and prominently; frame them tastefully.\n` +
-      `- Fully responsive (mobile-first). Real, specific, compelling copy — NO lorem ipsum.\n\n` +
-      `Brief: ${brief}.${refNote}${assetNote}\n\n` +
-      `Animation hooks — add these attributes so motion can attach: data-hero on the hero ` +
-      `container, data-reveal on scroll-in sections, data-pin on a standout section, ` +
-      `data-parallax on parallax layers, data-marquee on a logo/text marquee, data-draw on a ` +
-      `decorative SVG path, data-count on any statistic number (data-count = target value).\n\n` +
+      `Design and build a complete, single, production-quality index.html for the brief ` +
+      `below. This is the FINAL website, not a wireframe — make it genuinely beautiful, and ` +
+      `use your own judgement to choose the typography, colour palette, and layout that best ` +
+      `suit THIS brief (like a top designer would — don't follow a fixed template).\n\n` +
+      `Requirements:\n` +
+      `- One self-contained index.html; all CSS in a <style> tag; load any web fonts from Google Fonts.\n` +
+      `- Fully responsive (mobile-first). Write real, specific, compelling copy from the brief — no lorem ipsum.\n` +
+      `-${refNote}${assetNote}\n` +
+      `- Add these animation hooks where they fit: data-hero (hero container), data-reveal ` +
+      `(scroll-in sections), data-pin (a standout section), data-parallax, data-marquee, ` +
+      `data-draw (a decorative SVG path), data-count (a statistic number = its target value).\n\n` +
+      `Brief: ${brief}\n\n` +
       `Output ONLY the HTML (no markdown fences).`;
 
     const content: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
