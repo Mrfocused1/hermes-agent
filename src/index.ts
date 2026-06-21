@@ -11,7 +11,7 @@ const cfg = loadConfig(process.env);
 
 const svc: Services = {
   openai: makeOpenAIService(cfg.openaiApiKey),
-  glm: makeGlmService(cfg.glmApiKey, cfg.glmBaseUrl),
+  glm: makeGlmService(cfg.glmApiKey, cfg.glmBaseUrl, process.env.GLM_MODEL ?? "glm-5.2"),
   github: makeGithubService(cfg.githubToken, cfg.githubOwner),
   vercel: makeVercelService(cfg.vercelToken),
   shell: makeShellService(process.env.WORKSPACE_DIR ?? "/tmp/hermes-workspaces"),
@@ -19,5 +19,16 @@ const svc: Services = {
 };
 
 const bot = makeBot(cfg.telegramBotToken, svc);
-// drop_pending_updates clears any backlog so a redeploy doesn't reprocess old messages.
-bot.start({ drop_pending_updates: true, onStart: () => console.log("Hermes is running.") });
+
+// Polling can fail with a 409 ("two instances") during a redeploy overlap.
+// Instead of crashing the process (which then cold-restarts), wait and retry
+// until the old instance is gone — self-healing, no downtime loop.
+async function startBot(): Promise<void> {
+  try {
+    await bot.start({ drop_pending_updates: true, onStart: () => console.log("Hermes is running.") });
+  } catch (e) {
+    console.error("[bot] polling stopped, retrying in 6s:", (e as Error).message);
+    setTimeout(startBot, 6000);
+  }
+}
+startBot();
