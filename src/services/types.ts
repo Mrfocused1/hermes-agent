@@ -10,6 +10,11 @@ export interface GlmService {
   assembleProject(pageHtml: string, recipes: string[]): Promise<string>;
   fixBuildError(currentFiles: string, errorLog: string): Promise<string>;
   applyEdit(currentFiles: string, instruction: string): Promise<string>;
+  /** Generic multi-turn chat used for the consultation phase. */
+  converse(
+    systemPrompt: string,
+    messages: { role: "user" | "assistant"; content: string }[],
+  ): Promise<string>;
 }
 
 export interface GithubService {

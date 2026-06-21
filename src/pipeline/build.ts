@@ -1,5 +1,6 @@
 import { selectRecipes, RECIPES, type PageFeatures } from "../gsap/recipes.js";
 import { verifyAndRetry, type VerifyOutcome } from "./verify.js";
+import { parseModelJson } from "../services/json.js";
 import type { Services } from "../services/types.js";
 
 function detectFeatures(html: string): PageFeatures {
@@ -28,7 +29,7 @@ export async function runBuild(
   const page = await svc.openai.imageToCode(img, brief);
   const recipes = selectRecipes(detectFeatures(page)).map((k) => RECIPES[k]);
 
-  let files: Record<string, string> = JSON.parse(
+  let files: Record<string, string> = parseModelJson(
     await svc.glm.assembleProject(page, recipes),
   );
   await svc.github.createRepo(repo);
@@ -43,7 +44,7 @@ export async function runBuild(
       return { ok: !/error/i.test(log), log };
     },
     fix: async (log) => {
-      const patch: Record<string, string> = JSON.parse(
+      const patch: Record<string, string> = parseModelJson(
         await svc.glm.fixBuildError(JSON.stringify(files), log),
       );
       files = { ...files, ...patch };

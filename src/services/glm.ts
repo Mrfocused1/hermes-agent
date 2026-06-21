@@ -54,5 +54,17 @@ export function makeGlmService(
     );
   }
 
-  return { assembleProject, fixBuildError, applyEdit };
+  /** Generic multi-turn chat, used for the consultation phase. */
+  async function converse(
+    systemPrompt: string,
+    messages: { role: "user" | "assistant"; content: string }[],
+  ): Promise<string> {
+    const res = await client.chat.completions.create({
+      model,
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
+    });
+    return res.choices[0]?.message?.content ?? "";
+  }
+
+  return { assembleProject, fixBuildError, applyEdit, converse };
 }

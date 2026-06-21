@@ -1,3 +1,4 @@
+import { parseModelJson } from "../services/json.js";
 import type { Services } from "../services/types.js";
 
 export interface AmendOutput {
@@ -14,7 +15,7 @@ export async function runAmend(
   files: Record<string, string>,
   instruction: string,
 ): Promise<AmendOutput> {
-  const patch: Record<string, string> = JSON.parse(
+  const patch: Record<string, string> = parseModelJson(
     await svc.glm.applyEdit(JSON.stringify(files), instruction),
   );
   const merged = { ...files, ...patch };
