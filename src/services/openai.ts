@@ -27,8 +27,9 @@ export function makeOpenAIService(apiKey: string): OpenAIService {
               text:
                 `Convert this website design into a single responsive index.html ` +
                 `with inline CSS. Brief: ${brief}. Add data-hero on the hero ` +
-                `container, data-reveal on scroll-in sections, data-parallax on ` +
-                `parallax layers, and data-marquee on any logo/text marquee.`,
+                `container, data-reveal on scroll-in sections, data-pin on a ` +
+                `standout section worth pinning, data-parallax on parallax ` +
+                `layers, and data-marquee on any logo/text marquee.`,
             },
             {
               type: "image_url",
