@@ -21,7 +21,7 @@ const TOOL_STATUS: Record<string, string> = {
   write_file: "📝 Writing a file…",
   read_file: "📖 Reading a file…",
   list_files: "📂 Looking at the files…",
-  build_website: "🛠️ Designing & building your site… (~a minute)",
+  build_website: "🛠️ Designing & building your full site… this can take a few minutes (up to ~10 for a big brief). I'll send the link the moment it's ready.",
   edit_website: "✏️ Applying your change…",
   publish_website: "🚀 Publishing…",
 };

@@ -130,18 +130,26 @@ export function makeExecutors(ctx: ToolContext): Record<string, ToolExecutor> {
       const brief = String(args.brief ?? "");
       if (!brief) return "I need a brief before I can build.";
       const repo = `site-${chatId}-${messageId}`;
-      const r = await runBuild(svc, repo, brief, convo.getEmbeds(chatId));
-      store.setActive(chatId, {
-        repo,
-        previewUrl: r.previewUrl,
-        deployId: r.deployId,
-        files: r.files,
-        assets: r.assets,
-        history: [],
-      });
-      convo.clearImages(chatId);
-      await notify(`✅ Preview ready: ${r.previewUrl}\n\nWant changes? Just tell me. Say "publish" when you're happy.`);
-      return `Built and deployed. I already sent the user this preview URL: ${r.previewUrl}. Briefly confirm it's ready.`;
+      try {
+        const r = await runBuild(svc, repo, brief, convo.getEmbeds(chatId));
+        store.setActive(chatId, {
+          repo,
+          previewUrl: r.previewUrl,
+          deployId: r.deployId,
+          files: r.files,
+          assets: r.assets,
+          history: [],
+        });
+        convo.clearImages(chatId);
+        await notify(`✅ Preview ready: ${r.previewUrl}\n\nWant changes? Just tell me. Say "publish" when you're happy.`);
+        return `Built and deployed; the preview URL was already sent to the user.`;
+      } catch (e) {
+        await notify(
+          `⚠️ That build didn't finish: ${(e as Error).message.slice(0, 140)}\n\n` +
+            `GLM‑5.2 can stall on very large briefs — try again, or trim the brief a little.`,
+        );
+        return `The build failed; I've already told the user. Don't retry automatically.`;
+      }
     },
 
     edit_website: async (args) => {

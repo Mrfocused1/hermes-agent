@@ -37,6 +37,9 @@ const DESIGN_SYSTEM = [
   "  Motion must feel FAST and intentional — restraint over flash; every animation has a reason.",
   "- Respect prefers-reduced-motion (reduce/disable heavy motion; keep all content visible).",
   "  Mobile-first responsive; simplify heavy effects on small screens.",
+  "- CRITICAL FAIL-SAFE: content must be visible by default. Animations only ENHANCE — if a",
+  "  scroll trigger never fires, the content must STILL be readable. Add a window 'load' listener",
+  "  that force-reveals any reveal-targeted elements after ~3s, so nothing can be left stuck hidden.",
   "",
   "CONTENT: real, specific, compelling copy in the brand's voice — NO lorem ipsum.",
   "Build a rich, multi-section site (aim 7+ unique sections, no repetition).",
@@ -78,11 +81,11 @@ export function makeGlmService(
     const res = await fetch(`${baseURL}/chat/completions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(260_000),
+      signal: AbortSignal.timeout(600_000), // up to 10 min — big briefs are slow but worth waiting
       body: JSON.stringify({
         model,
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 28000,
+        max_tokens: 32000,
         thinking: { type: "disabled" },
       }),
     });
