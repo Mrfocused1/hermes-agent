@@ -64,6 +64,9 @@ export function makeBot(token: string, svc: Services): Bot {
       convo,
       chatId,
       messageId: ctx.message?.message_id ?? 0,
+      notify: async (text) => {
+        await ctx.reply(text);
+      },
     });
 
     let reply: string;

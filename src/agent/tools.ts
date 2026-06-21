@@ -109,11 +109,13 @@ export interface ToolContext {
   convo: ConversationStore;
   chatId: number;
   messageId: number;
+  /** Send a message to the user directly (not via the agent's summary). */
+  notify: (text: string) => Promise<void>;
 }
 
 /** Bind the tool executors to a specific chat's services and state. */
 export function makeExecutors(ctx: ToolContext): Record<string, ToolExecutor> {
-  const { svc, store, convo, chatId, messageId } = ctx;
+  const { svc, store, convo, chatId, messageId, notify } = ctx;
   return {
     run_bash: async (args) => svc.shell.runBash(chatId, String(args.command ?? "")),
 
@@ -138,7 +140,8 @@ export function makeExecutors(ctx: ToolContext): Record<string, ToolExecutor> {
         history: [],
       });
       convo.clearImages(chatId);
-      return `Built and deployed. Preview URL: ${r.previewUrl}`;
+      await notify(`✅ Preview ready: ${r.previewUrl}\n\nWant changes? Just tell me. Say "publish" when you're happy.`);
+      return `Built and deployed. I already sent the user this preview URL: ${r.previewUrl}. Briefly confirm it's ready.`;
     },
 
     edit_website: async (args) => {
@@ -153,7 +156,8 @@ export function makeExecutors(ctx: ToolContext): Record<string, ToolExecutor> {
         deployId: r.deployId,
       });
       store.pushCommit(chatId, r.sha);
-      return `Edited and redeployed. Preview URL: ${r.previewUrl}`;
+      await notify(`✅ Updated preview: ${r.previewUrl}`);
+      return `Edited and redeployed. I already sent the user this URL: ${r.previewUrl}. Briefly confirm the change is done.`;
     },
 
     publish_website: async () => {
