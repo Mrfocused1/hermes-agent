@@ -24,9 +24,10 @@ export async function runBuild(
   svc: Services,
   repo: string,
   brief: string,
+  references: string[] = [],
 ): Promise<BuildOutput> {
   const img = await svc.openai.generateDesignImage(brief);
-  const page = await svc.openai.imageToCode(img, brief);
+  const page = await svc.openai.imageToCode(img, brief, references);
   const recipes = selectRecipes(detectFeatures(page)).map((k) => RECIPES[k]);
 
   let files: Record<string, string> = parseModelJson(

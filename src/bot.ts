@@ -9,9 +9,9 @@ import type { Services } from "./services/types.js";
 const WELCOME = [
   "👋 Hi! I'm Hermes — I design, build, and deploy websites for you.",
   "",
-  "Tell me a bit about what you have in mind and I'll ask a few quick questions,",
-  "then build you a live preview. You can refine it in plain English, and say",
-  "“publish” when you're happy.",
+  "Tell me what you have in mind (you can send reference images too) and I'll ask",
+  "a few quick questions, then build you a live preview. You can refine it in plain",
+  "English, and say “publish” when you're happy.",
   "",
   "Commands: /new (start over) · /undo (revert last change) · publish (go live)",
 ].join("\n");
@@ -35,24 +35,22 @@ export function makeBot(token: string, svc: Services): Bot {
     return ctx.reply(prev ? "Reverted to the previous version." : "Nothing to undo yet.");
   }
 
-  bot.command(["start", "help"], (ctx) => ctx.reply(WELCOME));
+  /** Download the largest size of a photo message as base64. */
+  async function downloadPhoto(ctx: Context): Promise<string> {
+    const photos = ctx.message?.photo ?? [];
+    const largest = photos[photos.length - 1];
+    const file = await ctx.api.getFile(largest.file_id);
+    const url = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+    const res = await fetch(url);
+    return Buffer.from(await res.arrayBuffer()).toString("base64");
+  }
 
-  bot.command("new", (ctx) => {
-    store.setActive(ctx.chat.id, { repo: "", previewUrl: "", history: [] });
-    convo.reset(ctx.chat.id);
-    return ctx.reply("Fresh start! What kind of website are you looking to build?");
-  });
-
-  bot.command("publish", (ctx) => doPublish(ctx));
-  bot.command("undo", (ctx) => doUndo(ctx));
-
-  bot.on("message:text", async (ctx) => {
-    const chatId = ctx.chat.id;
-    const text = ctx.message.text.trim();
+  /** Shared path for any user utterance (text or photo caption). */
+  async function handleUtterance(ctx: Context, text: string): Promise<unknown> {
+    const chatId = ctx.chat!.id;
     const lower = text.toLowerCase();
     const active = store.getActive(chatId);
 
-    // Plain-word shortcuts (no slash needed)
     if (lower === "publish") return doPublish(ctx);
     if (lower === "undo" || lower === "go back") return doUndo(ctx);
 
@@ -74,7 +72,7 @@ export function makeBot(token: string, svc: Services): Bot {
       }
     }
 
-    // Otherwise we're in the consultation phase — talk it through, then build.
+    // Consultation phase — talk it through, then build
     convo.append(chatId, { role: "user", content: text });
     let result;
     try {
@@ -88,11 +86,15 @@ export function makeBot(token: string, svc: Services): Bot {
       return ctx.reply(result.text);
     }
 
-    // Brief is ready → build it
-    const repo = `site-${chatId}-${ctx.message.message_id}`;
-    await ctx.reply("Perfect — I've got what I need. Building your site now… this takes a minute. ⏳");
+    // Brief ready → build, using any reference images gathered
+    const repo = `site-${chatId}-${ctx.message?.message_id ?? Date.now()}`;
+    const images = convo.getImages(chatId);
+    await ctx.reply(
+      `Perfect — I've got what I need${images.length ? ` (and ${images.length} reference image(s))` : ""}. ` +
+        `Building your site now… this takes a minute. ⏳`,
+    );
     try {
-      const r = await runBuild(svc, repo, result.brief);
+      const r = await runBuild(svc, repo, result.brief, images);
       store.setActive(chatId, {
         repo,
         previewUrl: r.previewUrl,
@@ -114,6 +116,34 @@ export function makeBot(token: string, svc: Services): Bot {
     } catch (e) {
       return ctx.reply(`Something went wrong while building: ${(e as Error).message}`);
     }
+  }
+
+  bot.command(["start", "help"], (ctx) => ctx.reply(WELCOME));
+
+  bot.command("new", (ctx) => {
+    store.setActive(ctx.chat.id, { repo: "", previewUrl: "", history: [] });
+    convo.reset(ctx.chat.id);
+    return ctx.reply("Fresh start! What kind of website are you looking to build?");
+  });
+
+  bot.command("publish", (ctx) => doPublish(ctx));
+  bot.command("undo", (ctx) => doUndo(ctx));
+
+  bot.on("message:text", (ctx) => handleUtterance(ctx, ctx.message.text.trim()));
+
+  // Photos: store them as references; act on the caption if there is one.
+  bot.on("message:photo", async (ctx) => {
+    const chatId = ctx.chat.id;
+    try {
+      convo.addImage(chatId, await downloadPhoto(ctx));
+    } catch {
+      return ctx.reply("I couldn't read that image — mind resending it?");
+    }
+    const caption = ctx.message.caption?.trim() ?? "";
+    if (!caption) {
+      return ctx.reply("📎 Got your image. Send more, or tell me what you'd like me to build.");
+    }
+    return handleUtterance(ctx, caption);
   });
 
   return bot;

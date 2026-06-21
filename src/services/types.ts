@@ -3,7 +3,11 @@
 
 export interface OpenAIService {
   generateDesignImage(brief: string): Promise<string>;
-  imageToCode(imageB64: string, brief: string): Promise<string>;
+  imageToCode(
+    imageB64: string,
+    brief: string,
+    references?: string[],
+  ): Promise<string>;
 }
 
 export interface GlmService {
