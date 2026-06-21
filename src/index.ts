@@ -19,5 +19,5 @@ const svc: Services = {
 };
 
 const bot = makeBot(cfg.telegramBotToken, svc);
-bot.start();
-console.log("Hermes is running.");
+// drop_pending_updates clears any backlog so a redeploy doesn't reprocess old messages.
+bot.start({ drop_pending_updates: true, onStart: () => console.log("Hermes is running.") });

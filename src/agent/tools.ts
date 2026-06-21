@@ -134,19 +134,18 @@ export function makeExecutors(ctx: ToolContext): Record<string, ToolExecutor> {
         previewUrl: r.previewUrl,
         deployId: r.deployId,
         files: r.files,
+        assets: r.assets,
         history: [],
       });
       convo.clearImages(chatId);
-      return r.outcome.status === "ok"
-        ? `Built and deployed. Preview URL: ${r.previewUrl}`
-        : `Build failed after retries. Last error: ${r.outcome.lastLog.slice(0, 400)}`;
+      return `Built and deployed. Preview URL: ${r.previewUrl}`;
     },
 
     edit_website: async (args) => {
       const instruction = String(args.instruction ?? "");
       const active = store.getActive(chatId);
       if (!active?.repo) return "There's no active site to edit yet.";
-      const r = await runAmend(svc, active.repo, active.files ?? {}, instruction);
+      const r = await runAmend(svc, active.repo, active.files ?? {}, active.assets ?? {}, instruction);
       store.setActive(chatId, {
         ...active,
         files: r.files,

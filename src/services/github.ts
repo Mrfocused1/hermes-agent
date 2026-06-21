@@ -5,7 +5,12 @@ export function makeGithubService(token: string, owner: string): GithubService {
   const gh = new Octokit({ auth: token });
 
   async function createRepo(name: string): Promise<void> {
-    await gh.repos.createForAuthenticatedUser({ name, private: false, auto_init: true });
+    try {
+      await gh.repos.createForAuthenticatedUser({ name, private: false, auto_init: true });
+    } catch (e) {
+      if ((e as { status?: number }).status === 422) return; // already exists — fine
+      throw e;
+    }
   }
 
   /** Commit text files (and optional binary `assets` as base64) to main.

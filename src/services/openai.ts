@@ -45,13 +45,18 @@ export function makeOpenAIService(apiKey: string): OpenAIService {
     imageB64: string,
     brief: string,
     references: string[] = [],
+    assetPaths: string[] = [],
   ): Promise<string> {
+    const assetNote = assetPaths.length
+      ? ` Use these uploaded images as real <img> sources where they fit: ${assetPaths.join(", ")}.`
+      : "";
     const content: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
       {
         type: "text",
         text:
           `Convert this website design into a single responsive index.html ` +
-          `with inline CSS. Brief: ${brief}. Add data-hero on the hero ` +
+          `with inline CSS. Output ONLY the HTML, no markdown fences. ` +
+          `Brief: ${brief}.${assetNote} Add data-hero on the hero ` +
           `container, data-reveal on scroll-in sections, data-pin on a ` +
           `standout section worth pinning, data-parallax on parallax ` +
           `layers, data-marquee on any logo/text marquee, data-draw on a ` +
@@ -84,7 +89,10 @@ export function makeOpenAIService(apiKey: string): OpenAIService {
       model: "gpt-4o",
       messages: [{ role: "user", content }],
     });
-    return res.choices[0]?.message?.content ?? "";
+    const raw = res.choices[0]?.message?.content ?? "";
+    // Strip ```html ... ``` fences if the model added them.
+    const fenced = raw.match(/```(?:html)?\s*([\s\S]*?)```/i);
+    return (fenced ? fenced[1] : raw).trim();
   }
 
   /** Transcribe audio/video to text (voice notes, videos, audio files). */

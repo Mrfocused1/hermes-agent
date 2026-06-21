@@ -1,6 +1,4 @@
 import { selectRecipes, RECIPES, type PageFeatures } from "../gsap/recipes.js";
-import { verifyAndRetry, type VerifyOutcome } from "./verify.js";
-import { parseModelJson } from "../services/json.js";
 import type { Services } from "../services/types.js";
 
 function detectFeatures(html: string): PageFeatures {
@@ -13,15 +11,30 @@ function detectFeatures(html: string): PageFeatures {
   };
 }
 
+/** Inline GSAP (from CDN) + the chosen recipes into the page before </body>. */
+function injectGsap(html: string, recipes: string[]): string {
+  if (!recipes.length) return html;
+  const block = [
+    '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>',
+    '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>',
+    "<script>",
+    recipes.join("\n\n"),
+    "</script>",
+  ].join("\n");
+  return html.includes("</body>")
+    ? html.replace("</body>", `${block}\n</body>`)
+    : `${html}\n${block}`;
+}
+
 export interface BuildOutput {
-  outcome: VerifyOutcome;
   previewUrl: string;
   deployId: string;
   files: Record<string, string>;
+  assets: Record<string, string>;
 }
 
-/** Full build flow: design image → code → recipes → assemble → commit →
- *  deploy → verify-and-retry. */
+/** Build flow: design image → single static index.html → inject GSAP →
+ *  deploy directly to Vercel. GitHub push is best-effort (never blocks). */
 export async function runBuild(
   svc: Services,
   repo: string,
@@ -30,52 +43,36 @@ export async function runBuild(
   styleRefs: string[] = [],
 ): Promise<BuildOutput> {
   const log = (m: string) => console.log(`[build ${repo}] ${m}`);
-
-  // Both kinds of image shape the design; only embeds become site assets.
   const designRefs = [...embeds, ...styleRefs];
-  log(`generating design image (${designRefs.length} refs)`);
-  const img = await svc.openai.generateDesignImage(brief, designRefs);
-  log("image → code");
-  const page = await svc.openai.imageToCode(img, brief, designRefs);
-  const recipes = selectRecipes(detectFeatures(page)).map((k) => RECIPES[k]);
 
-  // Embed only the user's own images as actual site assets.
+  // The user's own images become real site assets served at /assets/ref-N.png.
   const assets: Record<string, string> = {};
   const assetPaths: string[] = [];
   embeds.forEach((b64, i) => {
-    const path = `public/assets/ref-${i}.png`;
-    assets[path] = b64;
+    assets[`assets/ref-${i}.png`] = b64;
     assetPaths.push(`/assets/ref-${i}.png`);
   });
 
-  log("assembling project (GLM)");
-  let files: Record<string, string> = parseModelJson(
-    await svc.glm.assembleProject(page, recipes, assetPaths),
-  );
-  log(`creating repo + committing ${Object.keys(files).length} files`);
-  await svc.github.createRepo(repo);
-  await svc.github.commitFiles(repo, files, "feat: initial site", assets);
+  log(`generating design image (${designRefs.length} refs)`);
+  const img = await svc.openai.generateDesignImage(brief, designRefs);
+  log("image → code");
+  let html = await svc.openai.imageToCode(img, brief, designRefs, assetPaths);
+  const recipes = selectRecipes(detectFeatures(html)).map((k) => RECIPES[k]);
+  html = injectGsap(html, recipes);
+  const files = { "index.html": html };
 
-  let deploy = { id: "", url: "" };
-  const outcome = await verifyAndRetry({
-    maxRetries: 2,
-    build: async () => {
-      log("deploying to Vercel");
-      deploy = await svc.vercel.deployPreview(repo, svc.owner);
-      log(`deploy id=${deploy.id} url=${deploy.url}`);
-      const buildLog = await svc.vercel.getBuildLogs(deploy.id);
-      return { ok: !/\berror\b/i.test(buildLog), log: buildLog };
-    },
-    fix: async (errLog) => {
-      log("fixing build error (GLM)");
-      const patch: Record<string, string> = parseModelJson(
-        await svc.glm.fixBuildError(JSON.stringify(files), errLog),
-      );
-      files = { ...files, ...patch };
-      await svc.github.commitFiles(repo, patch, "fix: build error");
-    },
-  });
+  log("deploying static site to Vercel");
+  const deploy = await svc.vercel.deployStatic(repo, files, assets);
+  log(`deployed: ${deploy.url}`);
 
-  log(`done: ${outcome.status}`);
-  return { outcome, previewUrl: deploy.url, deployId: deploy.id, files };
+  // Best-effort GitHub copy for the user's ownership/history — never blocks.
+  try {
+    await svc.github.createRepo(repo);
+    await svc.github.commitFiles(repo, files, "feat: initial site", assets);
+    log("pushed to GitHub");
+  } catch (e) {
+    log(`GitHub push skipped: ${(e as Error).message}`);
+  }
+
+  return { previewUrl: deploy.url, deployId: deploy.id, files, assets };
 }

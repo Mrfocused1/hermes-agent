@@ -156,5 +156,8 @@ export function makeBot(token: string, svc: Services): Bot {
     ctx.reply("I can take text, links, images, voice notes, and videos — try one of those 🙂"),
   );
 
+  // Never crash the process on a per-update error; log and keep polling.
+  bot.catch((err) => console.error("[bot] update error:", err.error));
+
   return bot;
 }

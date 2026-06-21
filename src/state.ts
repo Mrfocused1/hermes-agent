@@ -3,6 +3,7 @@ export interface Project {
   previewUrl: string;
   history: string[]; // commit SHAs, oldest first
   files?: Record<string, string>; // current project files
+  assets?: Record<string, string>; // binary assets (path -> base64)
   deployId?: string; // latest Vercel deployment id (for publish)
 }
 
