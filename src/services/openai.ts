@@ -2,7 +2,7 @@ import OpenAI, { toFile } from "openai";
 import type { OpenAIService } from "./types.js";
 
 export function makeOpenAIService(apiKey: string): OpenAIService {
-  const client = new OpenAI({ apiKey, timeout: 180_000, maxRetries: 1 });
+  const client = new OpenAI({ apiKey, timeout: 280_000, maxRetries: 1 });
   // Upgradable without a code change — set OPENAI_CODE_MODEL in Railway.
   const codeModel = process.env.OPENAI_CODE_MODEL ?? "gpt-4o";
 
@@ -28,6 +28,10 @@ export function makeOpenAIService(apiKey: string): OpenAIService {
       `below. This is the FINAL website, not a wireframe — make it genuinely beautiful, and ` +
       `use your own judgement to choose the typography, colour palette, and layout that best ` +
       `suit THIS brief (like a top designer would — don't follow a fixed template).\n\n` +
+      `Aim for the craft and polish of a top design studio: deliberate, characterful ` +
+      `typography, a refined and distinctive palette, real visual hierarchy, generous ` +
+      `spacing, depth, and tasteful motion. Make bold, intentional design choices — ` +
+      `avoid a generic, templated, or default-SaaS look.\n\n` +
       `Requirements:\n` +
       `- One self-contained index.html; all CSS in a <style> tag; load any web fonts from Google Fonts.\n` +
       `- Fully responsive (mobile-first). Write real, specific, compelling copy from the brief — no lorem ipsum.\n` +
