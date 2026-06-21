@@ -27,6 +27,11 @@ export class ConversationStore {
     return this.imagesByChat.get(chatId) ?? [];
   }
 
+  /** Clear stored reference images (e.g. after they've been used in a build). */
+  clearImages(chatId: number): void {
+    this.imagesByChat.delete(chatId);
+  }
+
   reset(chatId: number): void {
     this.byChat.delete(chatId);
     this.imagesByChat.delete(chatId);

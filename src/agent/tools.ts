@@ -1,0 +1,140 @@
+import type OpenAI from "openai";
+import { runBuild } from "../pipeline/build.js";
+import { runAmend } from "../pipeline/amend.js";
+import type { Services } from "../services/types.js";
+import type { ProjectStore } from "../state.js";
+import type { ConversationStore } from "../conversation.js";
+
+export type ToolExecutor = (args: Record<string, unknown>) => Promise<string>;
+
+/** The agent's skill set, as OpenAI-format tool definitions. */
+export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "research_url",
+      description: "Fetch and read the text content of a web page URL.",
+      parameters: {
+        type: "object",
+        properties: { url: { type: "string", description: "The URL to read." } },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "web_search",
+      description: "Search the web for information on a topic.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "The search query." } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "build_website",
+      description:
+        "Design, build, and deploy a NEW website preview. Call once you have gathered enough from the user.",
+      parameters: {
+        type: "object",
+        properties: {
+          brief: {
+            type: "string",
+            description:
+              "A detailed paragraph: purpose, style, colours, sections, tone, and key copy.",
+          },
+        },
+        required: ["brief"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "edit_website",
+      description: "Apply a change to the current website and redeploy.",
+      parameters: {
+        type: "object",
+        properties: {
+          instruction: { type: "string", description: "The change to make, in plain English." },
+        },
+        required: ["instruction"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "publish_website",
+      description: "Promote the current preview to production (take it live).",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+];
+
+export interface ToolContext {
+  svc: Services;
+  store: ProjectStore;
+  convo: ConversationStore;
+  chatId: number;
+  messageId: number;
+}
+
+/** Bind the tool executors to a specific chat's services and state. */
+export function makeExecutors(ctx: ToolContext): Record<string, ToolExecutor> {
+  const { svc, store, convo, chatId, messageId } = ctx;
+  return {
+    research_url: async (args) => {
+      const url = String(args.url ?? "");
+      if (!url) return "No URL provided.";
+      return svc.research.fetchUrl(url);
+    },
+
+    web_search: async (args) => svc.research.search(String(args.query ?? "")),
+
+    build_website: async (args) => {
+      const brief = String(args.brief ?? "");
+      if (!brief) return "I need a brief before I can build.";
+      const repo = `site-${chatId}-${messageId}`;
+      const images = convo.getImages(chatId);
+      const r = await runBuild(svc, repo, brief, images);
+      store.setActive(chatId, {
+        repo,
+        previewUrl: r.previewUrl,
+        deployId: r.deployId,
+        files: r.files,
+        history: [],
+      });
+      convo.clearImages(chatId);
+      return r.outcome.status === "ok"
+        ? `Built and deployed. Preview URL: ${r.previewUrl}`
+        : `Build failed after retries. Last error: ${r.outcome.lastLog.slice(0, 400)}`;
+    },
+
+    edit_website: async (args) => {
+      const instruction = String(args.instruction ?? "");
+      const active = store.getActive(chatId);
+      if (!active?.repo) return "There's no active site to edit yet.";
+      const r = await runAmend(svc, active.repo, active.files ?? {}, instruction);
+      store.setActive(chatId, {
+        ...active,
+        files: r.files,
+        previewUrl: r.previewUrl,
+        deployId: r.deployId,
+      });
+      store.pushCommit(chatId, r.sha);
+      return `Edited and redeployed. Preview URL: ${r.previewUrl}`;
+    },
+
+    publish_website: async () => {
+      const active = store.getActive(chatId);
+      if (!active?.deployId) return "There's no preview to publish yet.";
+      await svc.vercel.promoteToProduction(active.deployId);
+      return "Published to production.";
+    },
+  };
+}

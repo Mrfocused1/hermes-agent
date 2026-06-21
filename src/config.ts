@@ -6,6 +6,8 @@ export interface Config {
   githubToken: string;
   githubOwner: string;
   vercelToken: string;
+  /** Optional: enables the web_search skill (Tavily). */
+  searchApiKey?: string;
 }
 
 const REQUIRED = [
@@ -30,5 +32,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     githubToken: env.GITHUB_TOKEN!,
     githubOwner: env.GITHUB_OWNER!,
     vercelToken: env.VERCEL_TOKEN!,
+    searchApiKey: env.TAVILY_API_KEY,
   };
 }

@@ -30,11 +30,20 @@ export async function runBuild(
   const page = await svc.openai.imageToCode(img, brief, references);
   const recipes = selectRecipes(detectFeatures(page)).map((k) => RECIPES[k]);
 
+  // Embed the user's real images as actual site assets.
+  const assets: Record<string, string> = {};
+  const assetPaths: string[] = [];
+  references.forEach((b64, i) => {
+    const path = `public/assets/ref-${i}.png`;
+    assets[path] = b64;
+    assetPaths.push(`/assets/ref-${i}.png`);
+  });
+
   let files: Record<string, string> = parseModelJson(
-    await svc.glm.assembleProject(page, recipes),
+    await svc.glm.assembleProject(page, recipes, assetPaths),
   );
   await svc.github.createRepo(repo);
-  await svc.github.commitFiles(repo, files, "feat: initial site");
+  await svc.github.commitFiles(repo, files, "feat: initial site", assets);
 
   let deploy = await svc.vercel.deployPreview(repo, svc.owner);
   const outcome = await verifyAndRetry({

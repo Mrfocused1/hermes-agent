@@ -26,13 +26,22 @@ export function makeGlmService(
 
   /** Turn raw page HTML + chosen GSAP recipes into a deployable project.
    *  Returns a JSON string mapping file paths to file contents. */
-  function assembleProject(pageHtml: string, recipes: string[]): Promise<string> {
+  function assembleProject(
+    pageHtml: string,
+    recipes: string[],
+    assetPaths: string[] = [],
+  ): Promise<string> {
+    const assetNote = assetPaths.length
+      ? `\n\nThese real image assets are already in the repo — use them as the ` +
+        `actual <img>/background images on the site (reference by these exact ` +
+        `paths):\n${assetPaths.join("\n")}`
+      : "";
     return ask(
       "You output ONLY a JSON object mapping file paths to file contents for a " +
         "static Vite site deployable on Vercel. Include index.html, package.json, " +
         "vite.config.js, and a main.js that imports gsap and registers the " +
         "provided GSAP recipes. No prose, JSON only.",
-      `PAGE:\n${pageHtml}\n\nGSAP RECIPES TO INCLUDE:\n${recipes.join("\n\n")}`,
+      `PAGE:\n${pageHtml}\n\nGSAP RECIPES TO INCLUDE:\n${recipes.join("\n\n")}${assetNote}`,
     );
   }
 
@@ -54,7 +63,7 @@ export function makeGlmService(
     );
   }
 
-  /** Generic multi-turn chat, used for the consultation phase. */
+  /** Generic multi-turn chat, used for plain conversation. */
   async function converse(
     systemPrompt: string,
     messages: { role: "user" | "assistant"; content: string }[],
@@ -66,5 +75,19 @@ export function makeGlmService(
     return res.choices[0]?.message?.content ?? "";
   }
 
-  return { assembleProject, fixBuildError, applyEdit, converse };
+  /** Tool-calling chat: returns the assistant message (may include tool_calls). */
+  async function converseWithTools(
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    tools: OpenAI.Chat.Completions.ChatCompletionTool[],
+  ): Promise<OpenAI.Chat.Completions.ChatCompletionMessage> {
+    const res = await client.chat.completions.create({
+      model,
+      messages,
+      tools,
+      tool_choice: "auto",
+    });
+    return res.choices[0].message;
+  }
+
+  return { assembleProject, fixBuildError, applyEdit, converse, converseWithTools };
 }
