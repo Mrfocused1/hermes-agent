@@ -1,4 +1,7 @@
-import type { ConsultTurn } from "./consult.js";
+export interface ConsultTurn {
+  role: "user" | "assistant";
+  content: string;
+}
 
 /**
  * Per-chat consultation transcript and images. Images are split into two

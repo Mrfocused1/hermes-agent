@@ -28,12 +28,14 @@ const TOOL_STATUS: Record<string, string> = {
 
 export function makeBot(token: string, svc: Services): Bot {
   const bot = new Bot(token);
-  const store = new ProjectStore();
+  const store = new ProjectStore(process.env.STATE_FILE);
   const convo = new ConversationStore();
 
   async function doUndo(ctx: Context): Promise<unknown> {
-    const prev = store.popCommit(ctx.chat!.id);
-    return ctx.reply(prev ? "Reverted to the previous version." : "Nothing to undo yet.");
+    const prev = store.undo(ctx.chat!.id);
+    return ctx.reply(
+      prev ? `Reverted to the previous version: ${prev.previewUrl}` : "Nothing to undo yet.",
+    );
   }
 
   /** Download the largest size of any Telegram file by id as a Buffer. */

@@ -5,7 +5,7 @@ const API = "https://api.vercel.com";
 /**
  * Vercel REST API. We deploy files inline as a static site (no GitHub link, no
  * build step), which is the most reliable path for the single-page sites we
- * generate. promoteToProduction makes a preview the production deployment.
+ * generate. Publishing redeploys the same files with target "production".
  */
 export function makeVercelService(token: string): VercelService {
   const headers = {
@@ -17,6 +17,7 @@ export function makeVercelService(token: string): VercelService {
     name: string,
     files: Record<string, string>,
     assets: Record<string, string> = {},
+    target: "preview" | "production" = "preview",
   ): Promise<{ id: string; url: string }> {
     const fileList = [
       ...Object.entries(files).map(([file, data]) => ({ file, data })),
@@ -30,7 +31,7 @@ export function makeVercelService(token: string): VercelService {
         name: name.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 90),
         files: fileList,
         projectSettings: { framework: null },
-        target: "preview",
+        target,
       }),
     });
     const data = (await res.json()) as {
@@ -48,27 +49,19 @@ export function makeVercelService(token: string): VercelService {
     return { id: data.id, url: `https://${data.url}` };
   }
 
-  /** Disable Vercel Authentication so preview links don't 401. Best-effort. */
+  /** Disable Vercel Authentication + password protection so links don't 401. */
   async function disableProtection(projectId: string): Promise<void> {
     try {
       await fetch(`${API}/v9/projects/${projectId}`, {
         method: "PATCH",
         headers,
         signal: AbortSignal.timeout(20_000),
-        body: JSON.stringify({ ssoProtection: null }),
+        body: JSON.stringify({ ssoProtection: null, passwordProtection: null }),
       });
     } catch (e) {
       console.error("[vercel] could not disable protection:", (e as Error).message);
     }
   }
 
-  async function promoteToProduction(deploymentId: string): Promise<void> {
-    await fetch(`${API}/v13/deployments/${deploymentId}/promote`, {
-      method: "POST",
-      headers,
-      signal: AbortSignal.timeout(30_000),
-    });
-  }
-
-  return { deployStatic, promoteToProduction };
+  return { deployStatic };
 }

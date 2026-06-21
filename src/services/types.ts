@@ -47,13 +47,14 @@ export interface GithubService {
 }
 
 export interface VercelService {
-  /** Deploy files directly as a static site (no GitHub/build needed). */
+  /** Deploy files directly as a static site (no GitHub/build needed).
+   *  target "production" makes it the live site; "preview" (default) is private-ish. */
   deployStatic(
     name: string,
     files: Record<string, string>,
     assets?: Record<string, string>,
+    target?: "preview" | "production",
   ): Promise<{ id: string; url: string }>;
-  promoteToProduction(deploymentId: string): Promise<void>;
 }
 
 export interface ShellService {

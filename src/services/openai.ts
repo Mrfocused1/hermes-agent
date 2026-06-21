@@ -22,20 +22,25 @@ export function makeOpenAIService(apiKey: string): OpenAIService {
       `hierarchy. Brief: ${brief}`;
 
     if (references.length) {
-      const files = await Promise.all(
-        references.map((b64, i) =>
-          toFile(Buffer.from(b64, "base64"), `ref-${i}.png`, { type: "image/png" }),
-        ),
-      );
-      const res = await client.images.edit({
-        model: "gpt-image-1",
-        image: files,
-        prompt:
-          `${basePrompt} Use the provided reference images as the brand, people, ` +
-          `and content to feature prominently in the design.`,
-        size: "1536x1024",
-      });
-      return res.data?.[0]?.b64_json ?? "";
+      try {
+        const files = await Promise.all(
+          references.map((b64, i) =>
+            toFile(Buffer.from(b64, "base64"), `ref-${i}.png`, { type: "image/png" }),
+          ),
+        );
+        const res = await client.images.edit({
+          model: "gpt-image-1",
+          image: files,
+          prompt:
+            `${basePrompt} Use the provided reference images as the brand, people, ` +
+            `and content to feature prominently in the design.`,
+          size: "1536x1024",
+        });
+        const b64 = res.data?.[0]?.b64_json;
+        if (b64) return b64;
+      } catch (e) {
+        console.error("[openai] images.edit failed, falling back to text-only:", (e as Error).message);
+      }
     }
 
     const res = await client.images.generate({

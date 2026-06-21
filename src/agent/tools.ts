@@ -148,6 +148,13 @@ export function makeExecutors(ctx: ToolContext): Record<string, ToolExecutor> {
       const instruction = String(args.instruction ?? "");
       const active = store.getActive(chatId);
       if (!active?.repo) return "There's no active site to edit yet.";
+      // Record the current version first so "undo" can return to it.
+      store.pushHistory(chatId, {
+        files: active.files ?? {},
+        assets: active.assets ?? {},
+        previewUrl: active.previewUrl,
+        deployId: active.deployId ?? "",
+      });
       const r = await runAmend(svc, active.repo, active.files ?? {}, active.assets ?? {}, instruction);
       store.setActive(chatId, {
         ...active,
@@ -155,16 +162,22 @@ export function makeExecutors(ctx: ToolContext): Record<string, ToolExecutor> {
         previewUrl: r.previewUrl,
         deployId: r.deployId,
       });
-      store.pushCommit(chatId, r.sha);
       await notify(`✅ Updated preview: ${r.previewUrl}`);
       return `Edited and redeployed. I already sent the user this URL: ${r.previewUrl}. Briefly confirm the change is done.`;
     },
 
     publish_website: async () => {
       const active = store.getActive(chatId);
-      if (!active?.deployId) return "There's no preview to publish yet.";
-      await svc.vercel.promoteToProduction(active.deployId);
-      return "Published to production.";
+      if (!active?.files) return "There's no site to publish yet — build one first.";
+      const deploy = await svc.vercel.deployStatic(
+        active.repo,
+        active.files,
+        active.assets ?? {},
+        "production",
+      );
+      store.setActive(chatId, { ...active, deployId: deploy.id });
+      await notify(`🚀 Published live: ${deploy.url}`);
+      return `Published to production at ${deploy.url}.`;
     },
   };
 }
