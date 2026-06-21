@@ -57,8 +57,12 @@ export function makeBot(token: string, svc: Services): Bot {
     convo.append(chatId, { role: "user", content: text + note });
 
     const active = store.getActive(chatId);
+    const imagesAvailable = convo.imageCount(chatId);
     const messages = [
-      { role: "system" as const, content: `${AGENT_SYSTEM}\n\n${stateNote(active)}` },
+      {
+        role: "system" as const,
+        content: `${AGENT_SYSTEM}\n\n${stateNote(active)}\nIMAGES AVAILABLE: ${imagesAvailable} reference photo(s) attached.`,
+      },
       ...convo.get(chatId).map((t) => ({ role: t.role, content: t.content })),
     ];
     const executors = makeExecutors({
