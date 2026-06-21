@@ -106,7 +106,7 @@ export function makeOpenAIService(apiKey: string): OpenAIService {
     const res = await client.chat.completions.create({
       model: codeModel,
       messages: [{ role: "user", content }],
-      max_tokens: 12_000,
+      max_completion_tokens: 16_000, // GPT-5 models require this (not max_tokens)
     });
     const raw = res.choices[0]?.message?.content ?? "";
     // Strip ```html ... ``` fences if the model added them.
