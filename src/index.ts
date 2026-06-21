@@ -4,6 +4,7 @@ import { makeGlmService } from "./services/glm.js";
 import { makeGithubService } from "./services/github.js";
 import { makeVercelService } from "./services/vercel.js";
 import { makeResearchService } from "./services/research.js";
+import { makeBrowserService } from "./services/browser.js";
 import { makeBot } from "./bot.js";
 import type { Services } from "./services/types.js";
 
@@ -15,6 +16,7 @@ const svc: Services = {
   github: makeGithubService(cfg.githubToken, cfg.githubOwner),
   vercel: makeVercelService(cfg.vercelToken),
   research: makeResearchService(cfg.searchApiKey),
+  browser: makeBrowserService(),
   owner: cfg.githubOwner,
 };
 

@@ -54,7 +54,9 @@ export function makeOpenAIService(apiKey: string): OpenAIService {
           `with inline CSS. Brief: ${brief}. Add data-hero on the hero ` +
           `container, data-reveal on scroll-in sections, data-pin on a ` +
           `standout section worth pinning, data-parallax on parallax ` +
-          `layers, and data-marquee on any logo/text marquee.`,
+          `layers, data-marquee on any logo/text marquee, data-draw on a ` +
+          `decorative SVG path to draw on scroll, and data-count on any ` +
+          `statistic number (set data-count to the target value).`,
       },
       {
         type: "image_url",

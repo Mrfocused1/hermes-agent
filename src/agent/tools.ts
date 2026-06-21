@@ -13,7 +13,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "research_url",
-      description: "Fetch and read the text content of a web page URL.",
+      description: "Fetch and read the text content of a web page URL (simple/fast).",
       parameters: {
         type: "object",
         properties: { url: { type: "string", description: "The URL to read." } },
@@ -31,6 +31,54 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         properties: { query: { type: "string", description: "The search query." } },
         required: ["query"],
       },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "deep_research",
+      description: "Search the web and synthesize concise notes/content on a topic for the site.",
+      parameters: {
+        type: "object",
+        properties: { topic: { type: "string", description: "The topic to research." } },
+        required: ["topic"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "extract_data",
+      description: "Extract structured data (named fields) from a web page as JSON.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "The page to extract from." },
+          fields: { type: "string", description: "What to extract, e.g. 'name, role, photo for each team member'." },
+        },
+        required: ["url", "fields"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "screenshot_url",
+      description:
+        "Take a screenshot of a web page to copy its look. Saved as a style reference (not embedded).",
+      parameters: {
+        type: "object",
+        properties: { url: { type: "string", description: "The page to screenshot." } },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "screenshot_site",
+      description: "Screenshot the current built site and send it to the user to review.",
+      parameters: { type: "object", properties: {} },
     },
   },
   {
@@ -82,26 +130,64 @@ export interface ToolContext {
   convo: ConversationStore;
   chatId: number;
   messageId: number;
+  /** Send an image (base64 PNG) to the user. */
+  sendPhoto: (base64: string, caption?: string) => Promise<void>;
 }
 
 /** Bind the tool executors to a specific chat's services and state. */
 export function makeExecutors(ctx: ToolContext): Record<string, ToolExecutor> {
-  const { svc, store, convo, chatId, messageId } = ctx;
+  const { svc, store, convo, chatId, messageId, sendPhoto } = ctx;
   return {
     research_url: async (args) => {
       const url = String(args.url ?? "");
-      if (!url) return "No URL provided.";
-      return svc.research.fetchUrl(url);
+      return url ? svc.research.fetchUrl(url) : "No URL provided.";
     },
 
     web_search: async (args) => svc.research.search(String(args.query ?? "")),
+
+    deep_research: async (args) => {
+      const topic = String(args.topic ?? "");
+      const results = await svc.research.search(topic);
+      if (results.startsWith("Web search isn't set up")) return results;
+      return svc.glm.converse(
+        "Synthesize concise, accurate notes for a website from these search results. Plain text.",
+        [{ role: "user", content: `TOPIC: ${topic}\n\nRESULTS:\n${results}` }],
+      );
+    },
+
+    extract_data: async (args) => {
+      const url = String(args.url ?? "");
+      const fields = String(args.fields ?? "");
+      if (!url) return "No URL provided.";
+      const text = await svc.research.fetchUrl(url);
+      return svc.glm.converse(
+        "Extract the requested fields from the page text. Output ONLY JSON, no prose.",
+        [{ role: "user", content: `FIELDS: ${fields}\n\nPAGE:\n${text}` }],
+      );
+    },
+
+    screenshot_url: async (args) => {
+      const url = String(args.url ?? "");
+      if (!url) return "No URL provided.";
+      const b64 = await svc.browser.screenshot(url);
+      convo.addReference(chatId, b64); // style reference, NOT embedded
+      await sendPhoto(b64, `Screenshot of ${url}`);
+      return `Captured a screenshot of ${url} and saved it as a style reference for the design.`;
+    },
+
+    screenshot_site: async () => {
+      const active = store.getActive(chatId);
+      if (!active?.previewUrl) return "There's no built site to screenshot yet.";
+      const b64 = await svc.browser.screenshot(active.previewUrl);
+      await sendPhoto(b64, "Here's how your site looks right now.");
+      return "Sent the user a screenshot of the current site.";
+    },
 
     build_website: async (args) => {
       const brief = String(args.brief ?? "");
       if (!brief) return "I need a brief before I can build.";
       const repo = `site-${chatId}-${messageId}`;
-      const images = convo.getImages(chatId);
-      const r = await runBuild(svc, repo, brief, images);
+      const r = await runBuild(svc, repo, brief, convo.getEmbeds(chatId), convo.getReferences(chatId));
       store.setActive(chatId, {
         repo,
         previewUrl: r.previewUrl,

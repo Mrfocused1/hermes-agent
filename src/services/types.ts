@@ -58,11 +58,19 @@ export interface ResearchService {
   search(query: string): Promise<string>;
 }
 
+export interface BrowserService {
+  /** Full-page screenshot of a URL as base64 PNG. */
+  screenshot(url: string): Promise<string>;
+  /** Visible text of a JS-rendered page. */
+  renderText(url: string): Promise<string>;
+}
+
 export interface Services {
   openai: OpenAIService;
   glm: GlmService;
   github: GithubService;
   vercel: VercelService;
   research: ResearchService;
+  browser: BrowserService;
   owner: string;
 }

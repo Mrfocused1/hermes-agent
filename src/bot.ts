@@ -1,4 +1,4 @@
-import { Bot, type Context } from "grammy";
+import { Bot, type Context, InputFile } from "grammy";
 import { ProjectStore } from "./state.js";
 import { ConversationStore } from "./conversation.js";
 import { runAgent } from "./agent/loop.js";
@@ -19,6 +19,10 @@ const WELCOME = [
 const TOOL_STATUS: Record<string, string> = {
   research_url: "🔎 Reading that page…",
   web_search: "🔎 Searching the web…",
+  deep_research: "🔬 Researching that…",
+  extract_data: "📋 Extracting the details…",
+  screenshot_url: "📸 Capturing that page…",
+  screenshot_site: "📸 Taking a screenshot of your site…",
   build_website: "🛠️ Designing & building your site… (~a minute)",
   edit_website: "✏️ Applying your change…",
   publish_website: "🚀 Publishing…",
@@ -47,8 +51,8 @@ export function makeBot(token: string, svc: Services): Bot {
     const chatId = ctx.chat!.id;
     if (text.toLowerCase() === "undo" || text.toLowerCase() === "go back") return doUndo(ctx);
 
-    const imgCount = convo.getImages(chatId).length;
-    const note = imgCount ? ` [User has attached ${imgCount} reference image(s).]` : "";
+    const imgCount = convo.imageCount(chatId);
+    const note = imgCount ? ` [User has attached ${imgCount} image(s).]` : "";
     convo.append(chatId, { role: "user", content: text + note });
 
     const active = store.getActive(chatId);
@@ -62,6 +66,11 @@ export function makeBot(token: string, svc: Services): Bot {
       convo,
       chatId,
       messageId: ctx.message?.message_id ?? 0,
+      sendPhoto: async (base64, caption) => {
+        await ctx.replyWithPhoto(new InputFile(Buffer.from(base64, "base64"), "image.png"), {
+          caption,
+        });
+      },
     });
 
     let reply: string;
@@ -85,7 +94,7 @@ export function makeBot(token: string, svc: Services): Bot {
     const chatId = ctx.chat!.id;
     try {
       const buf = await fetchFile(ctx, fileId);
-      convo.addImage(chatId, buf.toString("base64"));
+      convo.addEmbed(chatId, buf.toString("base64"));
     } catch {
       return ctx.reply("I couldn't read that image — mind resending it?");
     }

@@ -8,6 +8,8 @@ function detectFeatures(html: string): PageFeatures {
     hasHero: /data-hero/.test(html),
     sectionCount: (html.match(/<section/g) ?? []).length,
     hasMarquee: /data-marquee/.test(html),
+    hasLine: /data-draw/.test(html),
+    hasCounter: /data-count/.test(html),
   };
 }
 
@@ -24,16 +26,19 @@ export async function runBuild(
   svc: Services,
   repo: string,
   brief: string,
-  references: string[] = [],
+  embeds: string[] = [],
+  styleRefs: string[] = [],
 ): Promise<BuildOutput> {
-  const img = await svc.openai.generateDesignImage(brief, references);
-  const page = await svc.openai.imageToCode(img, brief, references);
+  // Both kinds of image shape the design; only embeds become site assets.
+  const designRefs = [...embeds, ...styleRefs];
+  const img = await svc.openai.generateDesignImage(brief, designRefs);
+  const page = await svc.openai.imageToCode(img, brief, designRefs);
   const recipes = selectRecipes(detectFeatures(page)).map((k) => RECIPES[k]);
 
-  // Embed the user's real images as actual site assets.
+  // Embed only the user's own images as actual site assets.
   const assets: Record<string, string> = {};
   const assetPaths: string[] = [];
-  references.forEach((b64, i) => {
+  embeds.forEach((b64, i) => {
     const path = `public/assets/ref-${i}.png`;
     assets[path] = b64;
     assetPaths.push(`/assets/ref-${i}.png`);

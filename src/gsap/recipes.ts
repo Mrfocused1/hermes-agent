@@ -2,6 +2,8 @@ export interface PageFeatures {
   hasHero: boolean;
   sectionCount: number;
   hasMarquee: boolean;
+  hasLine?: boolean;
+  hasCounter?: boolean;
 }
 
 /**
@@ -125,6 +127,44 @@ export const RECIPES: Record<string, string> = {
     });
   });
 })();`.trim(),
+
+  "scroll-line": `
+// scroll-line: draw an SVG path[data-draw] as the user scrolls past it
+(() => {
+  gsap.registerPlugin(ScrollTrigger);
+  gsap.matchMedia().add({ reduce: "(prefers-reduced-motion: reduce)" }, (ctx) => {
+    gsap.utils.toArray("path[data-draw]").forEach((path) => {
+      const len = path.getTotalLength();
+      gsap.set(path, { strokeDasharray: len, strokeDashoffset: ctx.conditions.reduce ? 0 : len });
+      if (ctx.conditions.reduce) return;
+      gsap.to(path, {
+        strokeDashoffset: 0,
+        ease: "none",
+        scrollTrigger: { trigger: path, start: "top 80%", end: "bottom 30%", scrub: true },
+      });
+    });
+  });
+})();`.trim(),
+
+  "counter": `
+// counter: count [data-count] up to its target number when it scrolls into view
+(() => {
+  gsap.registerPlugin(ScrollTrigger);
+  gsap.matchMedia().add({ reduce: "(prefers-reduced-motion: reduce)" }, (ctx) => {
+    gsap.utils.toArray("[data-count]").forEach((el) => {
+      const target = parseFloat(el.getAttribute("data-count")) || 0;
+      if (ctx.conditions.reduce) { el.textContent = String(target); return; }
+      const obj = { v: 0 };
+      gsap.to(obj, {
+        v: target,
+        ease: "power1.out",
+        duration: 2,
+        scrollTrigger: { trigger: el, start: "top 85%", once: true },
+        onUpdate: () => { el.textContent = Math.round(obj.v).toLocaleString(); },
+      });
+    });
+  });
+})();`.trim(),
 };
 
 export function selectRecipes(f: PageFeatures): string[] {
@@ -133,5 +173,7 @@ export function selectRecipes(f: PageFeatures): string[] {
   if (f.sectionCount >= 2) picked.push("scroll-reveal");
   if (f.sectionCount >= 4) picked.push("pinned-section", "parallax");
   if (f.hasMarquee) picked.push("marquee");
+  if (f.hasLine) picked.push("scroll-line");
+  if (f.hasCounter) picked.push("counter");
   return picked;
 }
