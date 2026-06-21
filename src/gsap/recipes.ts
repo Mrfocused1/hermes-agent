@@ -35,26 +35,31 @@ export const RECIPES: Record<string, string> = {
 })();`.trim(),
 
   "scroll-reveal": `
-// scroll-reveal: fade/slide [data-reveal] elements in as they enter the viewport
+// scroll-reveal: fade/slide [data-reveal] elements in as they enter the viewport.
+// Fail-safe: per-element from()+ScrollTrigger reliably reveals in-view content,
+// and a load-time refresh + a safety timeout guarantee nothing stays hidden.
 (() => {
   gsap.registerPlugin(ScrollTrigger);
   gsap.matchMedia().add({ reduce: "(prefers-reduced-motion: reduce)" }, (ctx) => {
-    const reduce = ctx.conditions.reduce;
     const items = gsap.utils.toArray("[data-reveal]");
     if (!items.length) return;
-    gsap.set(items, { autoAlpha: 0, y: reduce ? 0 : 40 });
-    ScrollTrigger.batch(items, {
-      start: "top 85%",
-      onEnter: (batch) =>
-        gsap.to(batch, {
-          autoAlpha: 1,
-          y: 0,
-          duration: reduce ? 0 : 0.7,
-          ease: "power2.out",
-          stagger: reduce ? 0 : 0.1,
-          overwrite: true,
-        }),
+    if (ctx.conditions.reduce) { gsap.set(items, { autoAlpha: 1, y: 0 }); return; }
+    items.forEach((el) => {
+      gsap.from(el, {
+        autoAlpha: 0,
+        y: 40,
+        duration: 0.7,
+        ease: "power2.out",
+        scrollTrigger: { trigger: el, start: "top 88%", once: true },
+      });
     });
+    window.addEventListener("load", () => ScrollTrigger.refresh());
+    // Safety net: if anything is still invisible 3.5s in, force it visible.
+    setTimeout(() => {
+      items.forEach((el) => {
+        if (Number(gsap.getProperty(el, "autoAlpha")) === 0) gsap.set(el, { autoAlpha: 1, y: 0 });
+      });
+    }, 3500);
   });
 })();`.trim(),
 

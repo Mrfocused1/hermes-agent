@@ -87,8 +87,12 @@ export function makeBot(token: string, svc: Services): Bot {
     return ctx.reply(reply || "…");
   }
 
-  /** Store an image reference, then let the agent ask what it's for. */
-  async function handleImage(ctx: Context, fileId: string): Promise<unknown> {
+  // A batch of photos (a Telegram media group) arrives as separate messages.
+  // Collect them and act ONCE, ~1.8s after the last one — so multiple images
+  // don't each trigger a spurious agent turn / edit.
+  const pendingPhotos = new Map<number, { caption: string; timer: ReturnType<typeof setTimeout> }>();
+
+  async function handlePhoto(ctx: Context, fileId: string): Promise<unknown> {
     const chatId = ctx.chat!.id;
     try {
       const buf = await fetchFile(ctx, fileId);
@@ -96,8 +100,16 @@ export function makeBot(token: string, svc: Services): Bot {
     } catch {
       return ctx.reply("I couldn't read that image — mind resending it?");
     }
-    const caption = ctx.message?.caption?.trim();
-    return handleUtterance(ctx, caption || "(I've sent you an image.)");
+    const caption = ctx.message?.caption?.trim() ?? "";
+    const pending = pendingPhotos.get(chatId);
+    if (pending) clearTimeout(pending.timer);
+    const mergedCaption = caption || pending?.caption || "";
+    const timer = setTimeout(() => {
+      pendingPhotos.delete(chatId);
+      if (mergedCaption) void handleUtterance(ctx, mergedCaption);
+      else void ctx.reply("📎 Got your image(s). Tell me what you'd like me to build or change with them.");
+    }, 1800);
+    pendingPhotos.set(chatId, { caption: mergedCaption, timer });
   }
 
   /** Transcribe audio/video and route the words (plus any caption). */
@@ -133,7 +145,7 @@ export function makeBot(token: string, svc: Services): Bot {
 
   bot.on("message:photo", (ctx) => {
     const photos = ctx.message.photo;
-    return handleImage(ctx, photos[photos.length - 1].file_id);
+    return handlePhoto(ctx, photos[photos.length - 1].file_id);
   });
 
   bot.on("message:voice", (ctx) =>
@@ -151,7 +163,7 @@ export function makeBot(token: string, svc: Services): Bot {
 
   bot.on("message:document", (ctx) => {
     const doc = ctx.message.document;
-    if ((doc.mime_type ?? "").startsWith("image/")) return handleImage(ctx, doc.file_id);
+    if ((doc.mime_type ?? "").startsWith("image/")) return handlePhoto(ctx, doc.file_id);
     return ctx.reply(
       "I can work with text, links, images, voice notes, and videos — that file type isn't supported yet.",
     );
