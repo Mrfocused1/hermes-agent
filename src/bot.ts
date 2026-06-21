@@ -49,6 +49,7 @@ export function makeBot(token: string, svc: Services): Bot {
   /** Run the agent over the conversation and reply with its answer. */
   async function handleUtterance(ctx: Context, text: string): Promise<unknown> {
     const chatId = ctx.chat!.id;
+    console.log(`[chat ${chatId}] 👤 ${text}`);
     if (text.toLowerCase() === "undo" || text.toLowerCase() === "go back") return doUndo(ctx);
 
     const imgCount = convo.imageCount(chatId);
@@ -67,6 +68,7 @@ export function makeBot(token: string, svc: Services): Bot {
       chatId,
       messageId: ctx.message?.message_id ?? 0,
       notify: async (text) => {
+        console.log(`[chat ${chatId}] 🤖 ${text}`);
         await ctx.reply(text);
       },
     });
@@ -84,6 +86,7 @@ export function makeBot(token: string, svc: Services): Bot {
     }
 
     convo.append(chatId, { role: "assistant", content: reply });
+    console.log(`[chat ${chatId}] 🤖 ${reply}`);
     return ctx.reply(reply || "…");
   }
 
