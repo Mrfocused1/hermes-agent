@@ -130,7 +130,7 @@ export function makeExecutors(ctx: ToolContext): Record<string, ToolExecutor> {
       const brief = String(args.brief ?? "");
       if (!brief) return "I need a brief before I can build.";
       const repo = `site-${chatId}-${messageId}`;
-      const r = await runBuild(svc, repo, brief, convo.getEmbeds(chatId), convo.getReferences(chatId));
+      const r = await runBuild(svc, repo, brief, convo.getEmbeds(chatId));
       store.setActive(chatId, {
         repo,
         previewUrl: r.previewUrl,

@@ -4,20 +4,14 @@ import type OpenAI from "openai";
  *  concrete implementations (and from the SDKs). */
 
 export interface OpenAIService {
-  /** Design AND build a complete index.html directly from the brief + the
-   *  user's reference photos (no intermediate mockup). */
-  designSite(brief: string, references?: string[], assetPaths?: string[]): Promise<string>;
   /** Transcribe an audio or video file to text (voice notes, videos). */
   transcribe(media: Uint8Array, filename: string): Promise<string>;
 }
 
 export interface GlmService {
-  assembleProject(
-    pageHtml: string,
-    recipes: string[],
-    assetPaths?: string[],
-  ): Promise<string>;
-  fixBuildError(currentFiles: string, errorLog: string): Promise<string>;
+  /** Design AND build a complete award-winning GSAP index.html from the brief,
+   *  in Paul's house style (reasoning off for speed). */
+  designSite(brief: string, assetPaths?: string[]): Promise<string>;
   applyEdit(currentFiles: string, instruction: string): Promise<string>;
   /** Generic multi-turn chat used for plain conversation. */
   converse(
