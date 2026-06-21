@@ -1,4 +1,4 @@
-import { Bot, type Context, InputFile } from "grammy";
+import { Bot, type Context } from "grammy";
 import { ProjectStore } from "./state.js";
 import { ConversationStore } from "./conversation.js";
 import { runAgent } from "./agent/loop.js";
@@ -17,12 +17,10 @@ const WELCOME = [
 ].join("\n");
 
 const TOOL_STATUS: Record<string, string> = {
-  research_url: "🔎 Reading that page…",
-  web_search: "🔎 Searching the web…",
-  deep_research: "🔬 Researching that…",
-  extract_data: "📋 Extracting the details…",
-  screenshot_url: "📸 Capturing that page…",
-  screenshot_site: "📸 Taking a screenshot of your site…",
+  run_bash: "⚙️ Running a command…",
+  write_file: "📝 Writing a file…",
+  read_file: "📖 Reading a file…",
+  list_files: "📂 Looking at the files…",
   build_website: "🛠️ Designing & building your site… (~a minute)",
   edit_website: "✏️ Applying your change…",
   publish_website: "🚀 Publishing…",
@@ -66,11 +64,6 @@ export function makeBot(token: string, svc: Services): Bot {
       convo,
       chatId,
       messageId: ctx.message?.message_id ?? 0,
-      sendPhoto: async (base64, caption) => {
-        await ctx.replyWithPhoto(new InputFile(Buffer.from(base64, "base64"), "image.png"), {
-          caption,
-        });
-      },
     });
 
     let reply: string;

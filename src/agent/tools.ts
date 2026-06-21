@@ -12,73 +12,52 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
-      name: "research_url",
-      description: "Fetch and read the text content of a web page URL (simple/fast).",
+      name: "run_bash",
+      description:
+        "Run a bash command in your private workspace (Node, npm, git, build tools available). Your API keys are NOT in this environment.",
       parameters: {
         type: "object",
-        properties: { url: { type: "string", description: "The URL to read." } },
-        required: ["url"],
+        properties: { command: { type: "string", description: "The bash command to run." } },
+        required: ["command"],
       },
     },
   },
   {
     type: "function",
     function: {
-      name: "web_search",
-      description: "Search the web for information on a topic.",
-      parameters: {
-        type: "object",
-        properties: { query: { type: "string", description: "The search query." } },
-        required: ["query"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "deep_research",
-      description: "Search the web and synthesize concise notes/content on a topic for the site.",
-      parameters: {
-        type: "object",
-        properties: { topic: { type: "string", description: "The topic to research." } },
-        required: ["topic"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "extract_data",
-      description: "Extract structured data (named fields) from a web page as JSON.",
+      name: "write_file",
+      description: "Write a file in your workspace (path relative to the workspace root).",
       parameters: {
         type: "object",
         properties: {
-          url: { type: "string", description: "The page to extract from." },
-          fields: { type: "string", description: "What to extract, e.g. 'name, role, photo for each team member'." },
+          path: { type: "string", description: "Relative file path." },
+          content: { type: "string", description: "File contents." },
         },
-        required: ["url", "fields"],
+        required: ["path", "content"],
       },
     },
   },
   {
     type: "function",
     function: {
-      name: "screenshot_url",
-      description:
-        "Take a screenshot of a web page to copy its look. Saved as a style reference (not embedded).",
+      name: "read_file",
+      description: "Read a file from your workspace.",
       parameters: {
         type: "object",
-        properties: { url: { type: "string", description: "The page to screenshot." } },
-        required: ["url"],
+        properties: { path: { type: "string", description: "Relative file path." } },
+        required: ["path"],
       },
     },
   },
   {
     type: "function",
     function: {
-      name: "screenshot_site",
-      description: "Screenshot the current built site and send it to the user to review.",
-      parameters: { type: "object", properties: {} },
+      name: "list_files",
+      description: "List a directory in your workspace.",
+      parameters: {
+        type: "object",
+        properties: { path: { type: "string", description: "Relative directory path (default '.')." } },
+      },
     },
   },
   {
@@ -130,58 +109,20 @@ export interface ToolContext {
   convo: ConversationStore;
   chatId: number;
   messageId: number;
-  /** Send an image (base64 PNG) to the user. */
-  sendPhoto: (base64: string, caption?: string) => Promise<void>;
 }
 
 /** Bind the tool executors to a specific chat's services and state. */
 export function makeExecutors(ctx: ToolContext): Record<string, ToolExecutor> {
-  const { svc, store, convo, chatId, messageId, sendPhoto } = ctx;
+  const { svc, store, convo, chatId, messageId } = ctx;
   return {
-    research_url: async (args) => {
-      const url = String(args.url ?? "");
-      return url ? svc.research.fetchUrl(url) : "No URL provided.";
-    },
+    run_bash: async (args) => svc.shell.runBash(chatId, String(args.command ?? "")),
 
-    web_search: async (args) => svc.research.search(String(args.query ?? "")),
+    write_file: async (args) =>
+      svc.shell.writeFile(chatId, String(args.path ?? ""), String(args.content ?? "")),
 
-    deep_research: async (args) => {
-      const topic = String(args.topic ?? "");
-      const results = await svc.research.search(topic);
-      if (results.startsWith("Web search isn't set up")) return results;
-      return svc.glm.converse(
-        "Synthesize concise, accurate notes for a website from these search results. Plain text.",
-        [{ role: "user", content: `TOPIC: ${topic}\n\nRESULTS:\n${results}` }],
-      );
-    },
+    read_file: async (args) => svc.shell.readFile(chatId, String(args.path ?? "")),
 
-    extract_data: async (args) => {
-      const url = String(args.url ?? "");
-      const fields = String(args.fields ?? "");
-      if (!url) return "No URL provided.";
-      const text = await svc.research.fetchUrl(url);
-      return svc.glm.converse(
-        "Extract the requested fields from the page text. Output ONLY JSON, no prose.",
-        [{ role: "user", content: `FIELDS: ${fields}\n\nPAGE:\n${text}` }],
-      );
-    },
-
-    screenshot_url: async (args) => {
-      const url = String(args.url ?? "");
-      if (!url) return "No URL provided.";
-      const b64 = await svc.browser.screenshot(url);
-      convo.addReference(chatId, b64); // style reference, NOT embedded
-      await sendPhoto(b64, `Screenshot of ${url}`);
-      return `Captured a screenshot of ${url} and saved it as a style reference for the design.`;
-    },
-
-    screenshot_site: async () => {
-      const active = store.getActive(chatId);
-      if (!active?.previewUrl) return "There's no built site to screenshot yet.";
-      const b64 = await svc.browser.screenshot(active.previewUrl);
-      await sendPhoto(b64, "Here's how your site looks right now.");
-      return "Sent the user a screenshot of the current site.";
-    },
+    list_files: async (args) => svc.shell.listFiles(chatId, String(args.path ?? ".")),
 
     build_website: async (args) => {
       const brief = String(args.brief ?? "");

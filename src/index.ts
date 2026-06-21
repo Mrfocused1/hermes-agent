@@ -3,8 +3,7 @@ import { makeOpenAIService } from "./services/openai.js";
 import { makeGlmService } from "./services/glm.js";
 import { makeGithubService } from "./services/github.js";
 import { makeVercelService } from "./services/vercel.js";
-import { makeResearchService } from "./services/research.js";
-import { makeBrowserService } from "./services/browser.js";
+import { makeShellService } from "./services/shell.js";
 import { makeBot } from "./bot.js";
 import type { Services } from "./services/types.js";
 
@@ -15,8 +14,7 @@ const svc: Services = {
   glm: makeGlmService(cfg.glmApiKey, cfg.glmBaseUrl),
   github: makeGithubService(cfg.githubToken, cfg.githubOwner),
   vercel: makeVercelService(cfg.vercelToken),
-  research: makeResearchService(cfg.searchApiKey),
-  browser: makeBrowserService(),
+  shell: makeShellService(process.env.WORKSPACE_DIR ?? "/tmp/hermes-workspaces"),
   owner: cfg.githubOwner,
 };
 

@@ -51,18 +51,15 @@ export interface VercelService {
   promoteToProduction(deploymentId: string): Promise<void>;
 }
 
-export interface ResearchService {
-  /** Fetch and read a web page's text content. */
-  fetchUrl(url: string): Promise<string>;
-  /** Search the web (requires a search API key). */
-  search(query: string): Promise<string>;
-}
-
-export interface BrowserService {
-  /** Full-page screenshot of a URL as base64 PNG. */
-  screenshot(url: string): Promise<string>;
-  /** Visible text of a JS-rendered page. */
-  renderText(url: string): Promise<string>;
+export interface ShellService {
+  /** Run a bash command in the chat's workspace (keys scrubbed from env). */
+  runBash(chatId: number, command: string): Promise<string>;
+  /** Write a file (relative to the workspace). */
+  writeFile(chatId: number, relPath: string, content: string): Promise<string>;
+  /** Read a file (relative to the workspace). */
+  readFile(chatId: number, relPath: string): Promise<string>;
+  /** List a directory (relative to the workspace). */
+  listFiles(chatId: number, relPath: string): Promise<string>;
 }
 
 export interface Services {
@@ -70,7 +67,6 @@ export interface Services {
   glm: GlmService;
   github: GithubService;
   vercel: VercelService;
-  research: ResearchService;
-  browser: BrowserService;
+  shell: ShellService;
   owner: string;
 }
