@@ -4,13 +4,9 @@ import type OpenAI from "openai";
  *  concrete implementations (and from the SDKs). */
 
 export interface OpenAIService {
-  generateDesignImage(brief: string, references?: string[]): Promise<string>;
-  imageToCode(
-    imageB64: string,
-    brief: string,
-    references?: string[],
-    assetPaths?: string[],
-  ): Promise<string>;
+  /** Design AND build a complete index.html directly from the brief + the
+   *  user's reference photos (no intermediate mockup). */
+  designSite(brief: string, references?: string[], assetPaths?: string[]): Promise<string>;
   /** Transcribe an audio or video file to text (voice notes, videos). */
   transcribe(media: Uint8Array, filename: string): Promise<string>;
 }

@@ -53,10 +53,8 @@ export async function runBuild(
     assetPaths.push(`/assets/ref-${i}.png`);
   });
 
-  log(`generating design image (${designRefs.length} refs)`);
-  const img = await svc.openai.generateDesignImage(brief, designRefs);
-  log("image → code");
-  let html = await svc.openai.imageToCode(img, brief, designRefs, assetPaths);
+  log(`designing site directly (${designRefs.length} ref photos)`);
+  let html = await svc.openai.designSite(brief, designRefs, assetPaths);
   const recipes = selectRecipes(detectFeatures(html)).map((k) => RECIPES[k]);
   html = injectGsap(html, recipes);
   const files = { "index.html": html };
